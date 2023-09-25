@@ -31,6 +31,12 @@ const TokenRegex: Map<TokenType, RegExp> = new Map([
   ["IDENTIFIER", /^[a-zA-Z]+$/],
 ]);
 
+type ASTNode = {
+  type: string;
+  children: ASTNode[];
+  value?: string;
+};
+
 /**
  * Regex that determines how to break apart the tokens.
  */
@@ -99,5 +105,90 @@ export class Parser {
     }
 
     return tokens;
+  }
+
+  /**
+   * Parses a list of tokens and returns an AST
+   * At this point, we're only parsing our very primitive function.
+   * Our grammar is as follows:
+   *   <program> ::= <function>
+   *   <function> ::= "int" <identifier> "(" ")" "{" <statement> "}"
+   *   <statement> ::= "return" <exp> ";"
+   *   <exp> ::= <int>
+   */
+  parse(tokens: Token[]): ASTNode {
+    const root: ASTNode = {
+      type: "PROGRAM",
+      children: [],
+    };
+
+    // The terminal symbol of a function is the '}'
+    const FunctionDeclarationPattern: TokenType[] = [
+      "KEYWORD_INT",
+      "IDENTIFIER",
+      "OPEN_PAREN",
+      "CLOSE_PAREN",
+      "OPEN_BRACE",
+    ];
+
+    const ReturnPattern: TokenType[] = ["KEYWORD_RETURN"];
+    const ConstantPattern: TokenType[] = ["CONSTANT"];
+
+    let currentNode = root;
+    let tokenBuffer: Token[] = [];
+
+    function patternMatch(a: TokenType[], b: TokenType[]) {
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function recurse(): void {
+      // Push the current token to the buffer
+      const token = tokens.shift();
+      if (!token) return;
+      tokenBuffer.push(token);
+
+      let newNode: ASTNode | undefined = undefined;
+
+      // Compare the pattern of tokens to the defined patterns
+      const statement = tokenBuffer.map((v) => v.type);
+      console.log(statement);
+      if (patternMatch(statement, FunctionDeclarationPattern)) {
+        if (!tokenBuffer[1].value)
+          throw new Error("Undefined identifier for function");
+        newNode = {
+          type: "FUNCTION",
+          value: tokenBuffer[1].value,
+          children: [],
+        };
+      } else if (patternMatch(statement, ReturnPattern)) {
+        newNode = {
+          type: "RETURN",
+          children: [],
+        };
+      } else if (patternMatch(statement, ConstantPattern)) {
+        if (!tokenBuffer[0].value)
+          throw new Error("Undefined value for constant Token");
+        newNode = {
+          type: "CONSTANT",
+          value: tokenBuffer[0].value,
+          children: [],
+        };
+      } else if (!tokens.length) {
+        return;
+      }
+
+      if (newNode) {
+        currentNode.children.push(newNode);
+        // Continue traversing the nodes
+        currentNode = newNode;
+        tokenBuffer = [];
+      }
+      return recurse();
+    }
+    recurse();
+
+    console.log(JSON.stringify(root));
+
+    return root;
   }
 }
